@@ -32,9 +32,9 @@ We observe marginal improvements of the regularized models over the default impl
 
 
 
-**KNN Accuracy over 200 epochs of training MoCo with and without CO2**
+**KNN Accuracy over 200 epochs of training MoCo with and without CO2** (Orange: w/ CO2, Blue: w/o CO2)
 ![](docs/moco_co2.PNG)
 
 
-**KNN Accuracy over 200 epochs of training SimCLR with and without CO2**
+**KNN Accuracy over 200 epochs of training SimCLR with and without CO2** (Blue: w/ CO2, Pink: w/o CO2)
 ![](docs/simclr_co2.PNG)
