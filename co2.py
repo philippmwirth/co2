@@ -1,4 +1,4 @@
-""" TODO """
+""" CO2 Eegularizer """
 
 # Copyright (c) 2020. Lightly AG and its affiliates.
 # All Rights Reserved
@@ -8,7 +8,35 @@ from lightly.loss.memory_bank import MemoryBankModule
 
 
 class CO2Regularizer(MemoryBankModule):
-    """TODO
+    """Implementation of the CO2 regularizer [0] for self-supervised learning.
+
+    [0] CO2, 2021, https://arxiv.org/abs/2010.02217
+
+    Attributes:
+        alpha:
+            Weight of the regularization term.
+        t_consistency:
+            Temperature used during softmax calculations.
+        memory_bank_size:
+            Number of negative samples to store in the memory bank.
+            Use 0 to use the second batch for negative samples.
+
+    Examples:
+        >>> # initialize loss function for MoCo
+        >>> loss_fn = NTXentLoss(memory_bank_size=4096)
+        >>>
+        >>> # initialize CO2 regularizer
+        >>> co2 = CO2Regularizer(alpha=1.0, memory_bank_size=4096)
+        >>>
+        >>> # generate two random trasnforms of images
+        >>> t0 = transforms(images)
+        >>> t1 = transforms(images)
+        >>>
+        >>> # feed through the MoCo model
+        >>> out0, out1 = model(t0, t1)
+        >>> 
+        >>> # calculate loss and apply regularizer
+        >>> loss = loss_fn(out0, out1) + co2(out0, out1)
 
     """
 
@@ -18,7 +46,7 @@ class CO2Regularizer(MemoryBankModule):
                 memory_bank_size: int = 0):
 
         super(CO2Regularizer, self).__init__(size=memory_bank_size)
-        self.kl_div = torch.nn.KLDivLoss(log_target=True, reduction='batchmean')
+        self.kl_div = torch.nn.KLDivLoss(reduction='batchmean', log_target=True)
         self.t_consistency = t_consistency
         self.alpha = alpha
 
@@ -26,7 +54,20 @@ class CO2Regularizer(MemoryBankModule):
                            out0: torch.Tensor,
                            out1: torch.Tensor,
                            negatives: torch.Tensor = None):
-        """TODO
+        """Computes the soft pseudo labels across negative samples.
+
+        Args:
+            out0:
+                Output projections of the first set of transformed images.
+            out1:
+                Output projections of the second set of transformed images.
+            negatives:
+                Negative samples to compare against. If this is None, the second
+                batch of images will be used as negative samples.
+
+        Returns:
+            Log probability that a positive samples will classify each negative 
+            sample as the positive sample.
 
         """
         batch_size, _ = out0.shape
@@ -48,7 +89,9 @@ class CO2Regularizer(MemoryBankModule):
         logits = torch.cat([l_pos, l_neg], dim=1)
         # divide by temperature
         logits = logits / self.t_consistency
-        # calculate log probabilities
+
+        # the input to kl_div is expected to be log(p) and we set the
+        # flag log_target to True, so both probabilities should be passed as log
         log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
         return log_probs
 
@@ -56,7 +99,16 @@ class CO2Regularizer(MemoryBankModule):
     def forward(self,
                 out0: torch.Tensor,
                 out1: torch.Tensor):
-        """TODO
+        """Computes the CO2 regularization term for two model outputs.
+
+        Args:
+            out0:
+                Output projections of the first set of transformed images.
+            out1:
+                Output projections of the second set of transformed images.
+
+        Returns:
+            The regularization term multiplied by the weight factor alpha.
 
         """
 

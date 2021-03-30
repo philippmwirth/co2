@@ -24,8 +24,8 @@ Model | CO2 | # of negatives | t_consistency | alpha | Epochs | Batch Size | Tes
 MoCo |  | | 1.0 | 1.0 | 200 | 512 | 0.842
 MoCo | &#x2611; | 4096  | 1.0 | 1.0 | 200 | 512 | 0.845
 SimCLR |  | | 1.0 | 1.0 | 200 |  512 | 0.834
-SimCLR | &#x2611;  | 1.0 | 1.0 | 512 | 200 | 512 | 0.840
-SimCLR | &#x2611;  | 1.0 | 1.0 | 4096 | 200 | 512
+SimCLR | &#x2611;  | 512| 1.0 | 1.0  | 200 | 512 | 0.840
+SimCLR | &#x2611;  | 4096| 1.0 | 1.0  | 200 | 512
 
 
 We observe marginal improvements of the regularized models over the default implementations on CIFAR-10. The largest improvement is achieved by SimCLR with an accuracy improvement of 0.6%.
