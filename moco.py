@@ -15,14 +15,15 @@ num_workers = 8
 memory_bank_size = 4096
 
 # set max_epochs to 800 for long run (takes around 10h on a single V100)
-max_epochs = 3
+max_epochs = 200
 knn_k = 200
 knn_t = 0.1
 classes = 10
-
-# benchmark
-n_runs = 1 # optional, increase to create multiple runs and report mean + std
 batch_size = 512
+
+# co2 parameters
+alpha = 1.0
+t_consistency = 1.0
 
 # use a GPU if available
 gpus = 1 if torch.cuda.is_available() else 0
@@ -117,7 +118,7 @@ class MocoModel(BenchmarkModule):
             temperature=0.1,
             memory_bank_size=memory_bank_size)
         # create co2 regularizer with memory bank
-        self.co2 = CO2Regularizer(alpha=alpha, memory_bank_size=memory_bank_size)
+        self.co2 = CO2Regularizer(alpha=alpha, t_consistency=t_consistency, memory_bank_size=memory_bank_size)
             
     def forward(self, x):
         self.resnet_moco(x)
@@ -129,8 +130,10 @@ class MocoModel(BenchmarkModule):
         y0, y1 = self.resnet_moco(x0, x1)
         z0, z1 = self.resnet_moco(x1, x0)
         loss = 0.5 * (self.criterion(y0, y1) + self.criterion(z0, z1))
-        loss = loss + self.co2(y0, y1)
+        reg = self.co2(y0, y1)
         self.log('train_loss_ssl', loss)
+        self.log('co2_reg', reg)
+        loss = loss + reg
         return loss
 
     def configure_optimizers(self):
@@ -145,7 +148,7 @@ seed = 1234
 # train moco with co2
 pl.seed_everything(seed)
 dataloader_train_ssl, dataloader_train_kNN, dataloader_test = get_data_loaders(batch_size)
-benchmark_model = MocoModel(dataloader_train_kNN, 1, 10, knn_k, knn_t, 1.0)
+benchmark_model = MocoModel(dataloader_train_kNN, 1, 10, knn_k, knn_t, alpha)
 trainer = pl.Trainer(max_epochs=max_epochs, gpus=gpus)
 trainer.fit(
     benchmark_model,

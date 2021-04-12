@@ -7,21 +7,22 @@ import torchvision
 import numpy as np
 import pytorch_lightning as pl
 import lightly
-from lightly import loss
+from _ntx_ent_loss import NTXentLoss
 from utils import BenchmarkModule
 from co2 import CO2Regularizer
 
 num_workers = 8
 
 # set max_epochs to 800 for long run (takes around 10h on a single V100)
-max_epochs = 3
+max_epochs = 200
 knn_k = 200
 knn_t = 0.1
 classes = 10
-
-# benchmark
-n_runs = 1 # optional, increase to create multiple runs and report mean + std
 batch_size = 512
+
+# co2 settings
+alpha = 1.0
+t_consistency = 1.0
 
 # use a GPU if available
 gpus = 1 if torch.cuda.is_available() else 0
@@ -111,19 +112,21 @@ class SimCLRModel(BenchmarkModule):
         # create a simclr model based on ResNet
         self.resnet_simclr = \
             lightly.models.SimCLR(self.backbone, num_ftrs=512)
-        self.criterion = loss.NTXentLoss(temperature=0.1)
-        # create co2 regularizer with memory bank
-        self.co2 = CO2Regularizer(alpha=alpha)
+        self.criterion = NTXentLoss(temperature=0.5)
+        # create co2 regularizer without memory bank (hence size=0)
+        self.co2 = CO2Regularizer(alpha=alpha, memory_bank_size=0, t_consistency=t_consistency)
             
     def forward(self, x):
         self.resnet_simclr(x)
 
     def training_step(self, batch, batch_idx):
         (x0, x1), _, _ = batch
-        x0, x1 = self.resnet_simclr(x0, x1)
-        loss = self.criterion(x0, x1)
-        loss = loss + self.co2(x0, x1)
+        y0, y1 = self.resnet_simclr(x0, x1)
+        loss = self.criterion(y0, y1)
+        reg = self.co2(y0, y1)
         self.log('train_loss_ssl', loss)
+        self.log('co2_reg', reg)
+        loss = loss + reg
         return loss
 
     def configure_optimizers(self):
@@ -138,7 +141,7 @@ seed = 1234
 # train simclr with co2
 pl.seed_everything(seed)
 dataloader_train_ssl, dataloader_train_kNN, dataloader_test = get_data_loaders(batch_size)
-benchmark_model = SimCLRModel(dataloader_train_kNN, 1, 10, knn_k, knn_t, 1.0)
+benchmark_model = SimCLRModel(dataloader_train_kNN, 1, 10, knn_k, knn_t, alpha)
 trainer = pl.Trainer(max_epochs=max_epochs, gpus=gpus)
 trainer.fit(
     benchmark_model,
